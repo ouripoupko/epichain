@@ -3,10 +3,10 @@ import json
 
 # Creates a SHA-256 hash of a transaction
 def hash(block):
-
     # We must make sure that the Dictionary is Ordered, or we'll have inconsistent hashes
     block_string = json.dumps(block.to_dict(), sort_keys=True).encode()
-    return hashlib.sha256(block_string).hexdigest()
+    hash_code = hashlib.sha256(block_string).hexdigest()
+    return hash_code
 
 
 class Blockchain:
@@ -27,7 +27,10 @@ class Blockchain:
 
     def get_transaction(self, index):
         return self.transactions[index] if len(self.transactions)>0 else None
-        
+
+    def get_all(self):
+        return self.blocks
+
     def last_signer(self):
         return self.blocks[-1].signer if self.blocks else None
         

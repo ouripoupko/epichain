@@ -25,7 +25,6 @@ def new_transaction():
 
     # Create a new Transaction
     transaction = Transaction(values['sender'], values['recipient'], values['code'])
-    print(transaction)
     approved = my_app.new_transaction(transaction)
     if not approved:
         return 'unauthorized transaction', 400
@@ -44,7 +43,7 @@ def get_transaction():
     if not all(k in values for k in required):
         return 'Missing values', 400
 
-    response = blockchain.get_transaction(values['index'])
+    response = '\n'.join(str(o) for o in my_app.blockchain.get_all())
     return jsonify(response), 200
 
 
