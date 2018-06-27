@@ -7,7 +7,7 @@ from transaction import Transaction
 import pdb
 
 # Instantiate the Node
-web_app = Flask(__name__)
+web_app = Flask(__name__, static_url_path = "")
 my_app = Consensus()
 
 # Generate a globally unique address for this node
@@ -32,6 +32,8 @@ def new_transaction():
     response = {'message': 'Transaction added successfully'}
     return jsonify(response), 201
 
+def print_dict(my_dict):
+    return '\n\t'.join(str(key)+' : '+(str(my_dict[key]) if my_dict[key]<2**16 else bytes.fromhex(hex(my_dict[key])[2:]).decode()) for key in my_dict)
     
 # transaction/get
 @web_app.route('/transaction/get', methods=['GET'])
@@ -39,11 +41,14 @@ def get_transaction():
     values = request.get_json()
 
     # Check that the required fields are in the POST'ed data
-    required = ['index']
-    if not all(k in values for k in required):
-        return 'Missing values', 400
+#    required = ['index']
+#    if not all(k in values for k in required):
+#        return 'Missing values', 400
 
-    response = '\n'.join(str(o) for o in my_app.blockchain.get_all())
+#    response = '\n'.join(str(o) for o in my_app.blockchain.get_all())
+#    response = '\ncode-\n'+'\n'.join(key.hex()[-5:]+' : '+my_app.state.code[key].hex()[1:40] for key in my_app.state.code)+'\n\nstorage-\n'+\
+#               '\n'.join(key.hex()[-5:]+' : \n\t'+print_dict(my_app.state.storage[key]) for key in my_app.state.storage)
+    response = {'message': 'Transaction added successfully'}
     return jsonify(response), 200
 
 

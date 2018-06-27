@@ -1,33 +1,193 @@
 import requests
-from threading import Thread, Lock
 import pdb
 
-def looper(port,lock):
-    for index in range(100):
-        requests.post(f'http://localhost:{port}/transaction/new',json={'sender':f'me{index}', 'recipient':f'you{index}', 'code':f'port{port}'})
-    lock.release()
-        
+
 if __name__ == '__main__':
+    community = '\
+pragma solidity ^0.4.21;\n\
+\n\
+contract Community {\n\
+\n\
+    event PersonaAdded(address persona);\n\
+\n\
+    address[] persona_list;\n\
+\n\
+    function get_community() public view returns(address[]) {\n\
+        return persona_list;\n\
+    }\n\
+\n\
+    function register_to_community(address persona) public {\n\
+        persona_list.push(persona);\n\
+        emit PersonaAdded(persona);\n\
+    }\n\
+}'
+
+    community_str = '608060405234801561001057600080fd5b50610286806100206000396000f30060806040526004361061004c576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680633bf47e8614610051578063b4bb3a3d146100bd575b600080fd5b34801561005d57600080fd5b50610066610100565b6040518080602001828103825283818151815260200191508051906020019060200280838360005b838110156100a957808201518184015260208101905061008e565b505050509050019250505060405180910390f35b3480156100c957600080fd5b506100fe600480360381019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061018e565b005b6060600080548060200260200160405190810160405280929190818152602001828054801561018457602002820191906000526020600020905b8160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001906001019080831161013a575b5050505050905090565b60008190806001815401808255809150509060018203906000526020600020016000909192909190916101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550507fb5029158193ef244bae9269b27d7e5a5d08e857bb6603871e122ea77359c78d781604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390a1505600a165627a7a7230582048e240e82d3a4955a7d5f48c99b44f8c1a0688d98f8b5cdf20b6dba45ba802910029'
+
+    persona = '\
+pragma solidity ^0.4.21;\n\
+\n\
+import "./Community.sol";\n\
+\n\
+contract Persona {\n\
+\n\
+    string name;\n\
+    address owner;\n\
+\n\
+    constructor(string myname, uint160 comm_addr) public {\n\
+        owner = msg.sender;\n\
+        Community c = Community(comm_addr);\n\
+        c.register_to_community(address(this));\n\
+        name = myname;\n\
+    }\n\
+\n\
+    function IsOwner(address claimer) public view returns(bool) {\n\
+        return claimer == owner;\n\
+    }\n\
+}'
+
+    persona_prefix = '608060405234801561001057600080fd5b5060405161032e38038061032e8339810180604052810190808051820192919060200180519060200190929190505050600033600160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055508190508073ffffffffffffffffffffffffffffffffffffffff1663b4bb3a3d306040518263ffffffff167c0100000000000000000000000000000000000000000000000000000000028152600401808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001915050600060405180830381600087803b15801561012157600080fd5b505af1158015610135573d6000803e3d6000fd5b50505050826000908051906020019061014f929190610158565b505050506101fd565b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f1061019957805160ff19168380011785556101c7565b828001600101855582156101c7579182015b828111156101c65782518255916020019190600101906101ab565b5b5090506101d491906101d8565b5090565b6101fa91905b808211156101f65760008160009055506001016101de565b5090565b90565b6101228061020c6000396000f300608060405260043610603f576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063dd0860a8146044575b600080fd5b348015604f57600080fd5b506082600480360381019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190505050609c565b604051808215151515815260200191505060405180910390f35b6000600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff161490509190505600a165627a7a72305820e9545fd741f64f11d15a21ebcaffbf79682c03ed2dc11ae114e8fa6fae05fc8a00290000000000000000000000000000000000000000000000000000000000000040'
+
+    voting = '\
+pragma solidity ^0.4.21;\n\
+\n\
+import "./GenesisParams.sol";\n\
+import "./Community.sol";\n\
+import "./Persona.sol";\n\
+\n\
+contract Candidates {\n\
+    mapping(uint160 => address[]) private candidates;\n\
+\n\
+    function AddVote(uint160 param, address vote) public {\n\
+        candidates[param].push(vote);\n\
+    }\n\
+    \n\
+    function GetVotes(uint160 param) public view returns(address[]) {\n\
+        return candidates[param];\n\
+    }\n\
+}\n\
+\n\
+contract VoteCount {\n\
+    mapping(address => bool) markers;\n\
+    \n\
+    function Mark(address[] voters) public {\n\
+        for(uint i = 0; i < voters.length; ++i) {\n\
+            markers[voters[i]] = true;\n\
+        }\n\
+    }\n\
+    \n\
+    function Count(address[] voters) public view returns(uint count) {\n\
+        count = 0;\n\
+        for(uint i = 0; i < voters.length; ++i) {\n\
+            if(markers[voters[i]] == true) {\n\
+                ++count;\n\
+            }\n\
+        }\n\
+    }\n\
+}\n\
+\n\
+contract Voting {\n\
+    \n\
+    mapping(bytes32 => Candidates) private votes;\n\
+    address community_addr;\n\
+    event VoteCasted(bool result);\n\
+    event VotesCounted(bool result);\n\
+    \n\
+    constructor(address community) public {\n\
+        community_addr = community;\n\
+    }\n\
+\n\
+    function VoteParamChange(bytes32 name, uint160 param, address persona) public returns(bool result) {\n\
+        result = false;\n\
+        Persona p = Persona(persona);\n\
+        if(p.IsOwner(msg.sender)) {\n\
+            Candidates c = votes[name];\n\
+            if(address(c)==0) {\n\
+                c = new Candidates();\n\
+            }\n\
+            c.AddVote(param, persona);\n\
+            votes[name] = c;\n\
+            result = true;\n\
+        }\n\
+        emit VoteCasted(result);\n\
+    }\n\
+    \n\
+    function VerifyParamChange(bytes32 name, uint160 param) public returns(bool) {\n\
+        Candidates c = votes[name];\n\
+        address[] memory ballots = c.GetVotes(param);\n\
+        VoteCount counter = new VoteCount();\n\
+        counter.Mark(ballots);\n\
+        Community community = Community(community_addr);\n\
+        address[] memory voters = community.get_community();\n\
+        uint count = counter.Count(voters);\n\
+        bool result = count>voters.length/2;\n\
+        emit VotesCounted(result);\n\
+        return (result);\n\
+    }\n\
+}'
+
+    voting_prefix = '608060405234801561001057600080fd5b50604051602080610f828339810180604052810190808051906020019092919050505080600160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555050610efe806100846000396000f30060806040526004361061004c576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680632db2b1501461005157806339e23691146100da575b600080fd5b34801561005d57600080fd5b506100c06004803603810190808035600019169060200190929190803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803573ffffffffffffffffffffffffffffffffffffffff169060200190929190505050610143565b604051808215151515815260200191505060405180910390f35b3480156100e657600080fd5b506101296004803603810190808035600019169060200190929190803573ffffffffffffffffffffffffffffffffffffffff169060200190929190505050610436565b604051808215151515815260200191505060405180910390f35b60008060008092508391508173ffffffffffffffffffffffffffffffffffffffff1663dd0860a8336040518263ffffffff167c0100000000000000000000000000000000000000000000000000000000028152600401808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001915050602060405180830381600087803b1580156101e957600080fd5b505af11580156101fd573d6000803e3d6000fd5b505050506040513d602081101561021357600080fd5b8101908080519060200190929190505050156103f257600080876000191660001916815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905060008173ffffffffffffffffffffffffffffffffffffffff1614156102ad5761028d610903565b604051809103906000f0801580156102a9573d6000803e3d6000fd5b5090505b8073ffffffffffffffffffffffffffffffffffffffff166356b10f1586866040518363ffffffff167c0100000000000000000000000000000000000000000000000000000000028152600401808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200192505050600060405180830381600087803b15801561037c57600080fd5b505af1158015610390573d6000803e3d6000fd5b5050505080600080886000191660001916815260200190815260200160002060006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550600192505b7f43b4593f601c3927c172af707c6281ccfff5fabd89600b55eff21ce78432c9a383604051808215151515815260200191505060405180910390a150509392505050565b600080606060008060606000806000808b6000191660001916815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1696508673ffffffffffffffffffffffffffffffffffffffff1663b8a883268a6040518263ffffffff167c0100000000000000000000000000000000000000000000000000000000028152600401808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001915050600060405180830381600087803b15801561051b57600080fd5b505af115801561052f573d6000803e3d6000fd5b505050506040513d6000823e3d601f19601f82011682018060405250602081101561055957600080fd5b81019080805164010000000081111561057157600080fd5b8281019050602081018481111561058757600080fd5b81518560208202830111640100000000821117156105a457600080fd5b505092919050505095506105b6610913565b604051809103906000f0801580156105d2573d6000803e3d6000fd5b5094508473ffffffffffffffffffffffffffffffffffffffff16634d646dd4876040518263ffffffff167c01000000000000000000000000000000000000000000000000000000000281526004018080602001828103825283818151815260200191508051906020019060200280838360005b83811015610660578082015181840152602081019050610645565b5050505090500192505050600060405180830381600087803b15801561068557600080fd5b505af1158015610699573d6000803e3d6000fd5b50505050600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1693508373ffffffffffffffffffffffffffffffffffffffff16633bf47e866040518163ffffffff167c0100000000000000000000000000000000000000000000000000000000028152600401600060405180830381600087803b15801561072657600080fd5b505af115801561073a573d6000803e3d6000fd5b505050506040513d6000823e3d601f19601f82011682018060405250602081101561076457600080fd5b81019080805164010000000081111561077c57600080fd5b8281019050602081018481111561079257600080fd5b81518560208202830111640100000000821117156107af57600080fd5b505092919050505092508473ffffffffffffffffffffffffffffffffffffffff1663d6f035fd846040518263ffffffff167c01000000000000000000000000000000000000000000000000000000000281526004018080602001828103825283818151815260200191508051906020019060200280838360005b83811015610844578082015181840152602081019050610829565b5050505090500192505050602060405180830381600087803b15801561086957600080fd5b505af115801561087d573d6000803e3d6000fd5b505050506040513d602081101561089357600080fd5b81019080805190602001909291905050509150600283518115156108b357fe5b04821190507f9d55cf32946f982af83ba5b88efaced7c90ea614963b4574b4c57b45ad22b04e81604051808215151515815260200191505060405180910390a18097505050505050505092915050565b60405161030a8061092483390190565b6040516102a580610c2e833901905600608060405234801561001057600080fd5b506102ea806100206000396000f30060806040526004361061004c576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806356b10f1514610051578063b8a88326146100b4575b600080fd5b34801561005d57600080fd5b506100b2600480360381019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061014c565b005b3480156100c057600080fd5b506100f5600480360381019080803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506101f2565b6040518080602001828103825283818151815260200191508051906020019060200280838360005b8381101561013857808201518184015260208101905061011d565b505050509050019250505060405180910390f35b6000808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000208190806001815401808255809150509060018203906000526020600020016000909192909190916101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550505050565b60606000808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000208054806020026020016040519081016040528092919081815260200182805480156102b257602002820191906000526020600020905b8160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019060010190808311610268575b505050505090509190505600a165627a7a7230582085f12202e11156f0a11be2c26504f83637b4d17f3569f402aff316b8e9c08dff0029608060405234801561001057600080fd5b50610285806100206000396000f30060806040526004361061004c576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680634d646dd414610051578063d6f035fd146100b7575b600080fd5b34801561005d57600080fd5b506100b560048036038101908080359060200190820180359060200190808060200260200160405190810160405280939291908181526020018383602002808284378201915050505050509192919290505050610131565b005b3480156100c357600080fd5b5061011b600480360381019080803590602001908201803590602001908080602002602001604051908101604052809392919081815260200183836020028082843782019150505050505091929192905050506101bd565b6040518082815260200191505060405180910390f35b60008090505b81518110156101b9576001600080848481518110151561015357fe5b9060200190602002015173ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060006101000a81548160ff021916908315150217905550806001019050610137565b5050565b60008060009150600090505b8251811015610253576001151560008085848151811015156101e757fe5b9060200190602002015173ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060009054906101000a900460ff1615151415610248578160010191505b8060010190506101c9565b509190505600a165627a7a723058205682267aa81a39394b338c6846f10034eb76409ad7c1cbbfbe5295cb3fb2295a0029a165627a7a723058201032fd54c3ce08ef32be36e4639b71332ed0e918d8f14db0cd7459865c799c3e0029'
+
+    majority = '\
+pragma solidity ^0.4.21;\n\
+\n\
+import "./Voting.sol";\n\
+\n\
+contract MajorityPermission is GenesisPermission {\n\
+\n\
+    event PermissionChecked(bool result);\n\
+    address votingAddress;\n\
+\n\
+    constructor(address votingSystem) public {\n\
+        votingAddress = votingSystem;\n\
+    }\n\
+\n\
+    function CheckPermission(bytes32 name, uint160 param, address proof) public returns(bool result) {\n\
+        result = false;\n\
+        if(proof == votingAddress) {\n\
+            Voting v = Voting(votingAddress);\n\
+            result = v.VerifyParamChange(name, param);\n\
+        }\n\
+        emit PermissionChecked(result);\n\
+    }\n\
+}'
+    majority_prefix = '608060405234801561001057600080fd5b5060405160208061032d8339810180604052810190808051906020019092919050505080600160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550506102a9806100846000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680638f284cb814610046575b600080fd5b34801561005257600080fd5b506100b56004803603810190808035600019169060200190929190803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506100cf565b604051808215151515815260200191505060405180910390f35b60008060009150600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168373ffffffffffffffffffffffffffffffffffffffff16141561023a57600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff166339e2369186866040518363ffffffff167c01000000000000000000000000000000000000000000000000000000000281526004018083600019166000191681526020018273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200192505050602060405180830381600087803b1580156101fc57600080fd5b505af1158015610210573d6000803e3d6000fd5b505050506040513d602081101561022657600080fd5b810190808051906020019092919050505091505b7fabb9d62551bba6f3d3454aa08d370d1e6564862b7b7c785340aeb86471cdfb0682604051808215151515815260200191505060405180910390a15093925050505600a165627a7a723058201eeb4b0774da506b9273c1f9f11db3d75c130c161dd8225d9b500832e16d7b6c0029'
+
+    permission_tx = '13fe5620706172616d5f7365745f7065726d697373696f6e5f6164647200000000000000'
+    param_tx = '13fe562061626300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011'
+    vote_tx = '2db2b15061626300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011'
+
+    addr0 = '0000000000000000000000000000000000000000'
 #    pdb.set_trace()
-#    r=requests.post('http://localhost:5000/transaction/new',json={'sender':'me', 'recipient':'you', 'code':'shalom'})
-#    print(r.json())
-#    r=requests.post('http://localhost:5000/transaction/new',json={'sender':'him', 'recipient':'her', 'code':'goodbye'})
-#    print(r.json())
-    lock0 = Lock()
-    lock1 = Lock()
-    lock2 = Lock()
-    lock0.acquire()
-    lock1.acquire()
-    lock2.acquire()
-    Thread(target=looper,args=(5000,lock0),daemon=True).start()
-    Thread(target=looper,args=(5001,lock1),daemon=True).start()
-    Thread(target=looper,args=(5002,lock2),daemon=True).start()
-    lock0.acquire()
-    lock1.acquire()
-    lock2.acquire()
+
+    print(community)
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'community_owner_addr'.hex(), 'recipient':addr0, 'code':community_str})
     r=requests.get('http://localhost:5000/transaction/get',json={'index':0})
     print(r.json())
-    r=requests.get('http://localhost:5001/transaction/get',json={'index':0})
+
+    print(persona)
+    name = 'Udi Shapiro'
+    contract = persona_prefix+int(5).to_bytes(32, byteorder='big').hex()+len(name).to_bytes(32, byteorder='big').hex()+name.encode("utf-8").hex()+int(0).to_bytes(32-len(name),'big').hex()
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'udi_shapiro_____addr'.hex(), 'recipient':addr0, 'code':contract})
+    name = 'Nimrod Talmon'
+    contract = persona_prefix+int(5).to_bytes(32, byteorder='big').hex()+len(name).to_bytes(32, byteorder='big').hex()+name.encode("utf-8").hex()+int(0).to_bytes(32-len(name),'big').hex()
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'nimrod_talmon___addr'.hex(), 'recipient':addr0, 'code':contract})
+    name = 'Ouri Poupko'
+    contract = persona_prefix+int(5).to_bytes(32, byteorder='big').hex()+len(name).to_bytes(32, byteorder='big').hex()+name.encode("utf-8").hex()+int(0).to_bytes(32-len(name),'big').hex()
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'ouri_poupko_____addr'.hex(), 'recipient':addr0, 'code':contract})
+    r=requests.get('http://localhost:5000/transaction/get',json={'index':0})
     print(r.json())
-    r=requests.get('http://localhost:5002/transaction/get',json={'index':0})
+
+    print(voting)
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'voting_machine__addr'.hex(), 'recipient':addr0, 'code':voting_prefix+int(5).to_bytes(32, byteorder='big').hex()})
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'voting_machine__addr'.hex(), 'recipient':addr0, 'code':majority_prefix+int(9).to_bytes(32, byteorder='big').hex()})
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'voting_machine__addr'.hex(), 'recipient':int(1).to_bytes(20, byteorder='big').hex(), 'code':permission_tx+int(10).to_bytes(32, byteorder='big').hex()+int(0).to_bytes(32, byteorder='big').hex()})
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'voting_machine__addr'.hex(), 'recipient':int(1).to_bytes(20, byteorder='big').hex(), 'code':param_tx+int(0).to_bytes(32, byteorder='big').hex()})
+    r=requests.get('http://localhost:5000/transaction/get',json={'index':0})
+    print(r.json())
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'udi_shapiro_____addr'.hex(), 'recipient':int(9).to_bytes(20, byteorder='big').hex(), 'code':vote_tx+int(7).to_bytes(32, byteorder='big').hex()+int(0).to_bytes(32, byteorder='big').hex()})
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'udi_shapiro_____addr'.hex(), 'recipient':int(9).to_bytes(20, byteorder='big').hex(), 'code':vote_tx+int(6).to_bytes(32, byteorder='big').hex()+int(0).to_bytes(32, byteorder='big').hex()})
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'ouri_poupko_____addr'.hex(), 'recipient':int(9).to_bytes(20, byteorder='big').hex(), 'code':vote_tx+int(8).to_bytes(32, byteorder='big').hex()+int(0).to_bytes(32, byteorder='big').hex()})
+    r=requests.post('http://localhost:5000/transaction/new',json={'sender':b'voting_machine__addr'.hex(), 'recipient':int(1).to_bytes(20, byteorder='big').hex(), 'code':param_tx+int(9).to_bytes(32, byteorder='big').hex()})
+    r=requests.get('http://localhost:5000/transaction/get',json={'index':0})
     print(r.json())

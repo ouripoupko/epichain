@@ -97,9 +97,6 @@ deliver_tx_call_prefix = bytes.fromhex('f9a6b89500000000000000000000000000000000
 class StateMachine():
 
     def __init__(self):
-        pass
-
-    def not__init__(self):
         self.block_prevhash = 0
         self.block_coinbase = 0
         self.block_timestamp = 0
@@ -111,7 +108,6 @@ class StateMachine():
 
         self.storage = {}
         self.height = 1
-        self.uncommited_tx_count = 0
         self.nonce = 5
         
         result,gas,memory = vm_execute(self,Message(addr0,addr2),GenesisPermissionBytes)
@@ -129,11 +125,10 @@ class StateMachine():
         return str({"code":self.code,"storage":self.storage})
         
     def get_code(self, addr):
-        print('\n**** get_code ****\n')
         return self.code.get(bytes.fromhex(addr),b'')
         
     def get_balance(self, addr):
-        print('\n**** get_balance ****\n')
+        print('**** get_balance ****')
         return 0
         
     def set_balance(self, addr, balance):
@@ -141,19 +136,13 @@ class StateMachine():
         return 0
         
     def set_storage_data(self, addr, key, value):
-        print('\n**** set_storage_data ****')
         a=self.storage.get(addr,{})
         a.update({key:value})
         self.storage.update({addr:a})
-        print(self.storage)
-        print('**** set_storage_data ****\n')
 
     def get_storage_data(self, addr, key):
-        print('\n**** get_storage_data ****')
         a=self.storage.get(addr,{})
         b=a.get(key,0)
-        print(addr,key,b)
-        print('**** get_storage_data ****\n')
         return b
 
     def log_storage(self, addr):
@@ -165,16 +154,14 @@ class StateMachine():
         return 0
 
     def add_refund(self, x):
-        print('\n**** add_refund ****\n')
+        print('**** add_refund ****')
         return 0
 
     def log(self, addr, topics, data):
-        print('\n**** log ****\n')
-        print(addr,topics,data)
+        print(addr.hex(),topics,data.hex())
         return 0
 
     def create(self, msg):
-        print('\n**** create ****\n')
         return self.create_address(msg, msg.data.extract_all())
 
     def call(self, msg):
@@ -186,17 +173,13 @@ class StateMachine():
         return 0, 0, 0
 
     def account_exists(self,addr):
-        print('\n**** account_exists ****\n')
         return addr in self.code
 
     def msg(self, inmsg):
-        print('\n**** msg ****\n')
-        print("msg",inmsg.code_address)
         code = self.code.get(inmsg.code_address,None)
         return vm_execute(self,inmsg,code)
 
     def call_address(self, fromAddr, toAddr, data):
-        print("running",toAddr.hex())
         code = self.code.get(toAddr,None)
         if(code != None):
             result,gas,memory = vm_execute(self,Message(fromAddr,toAddr,data=data),code)
@@ -204,42 +187,22 @@ class StateMachine():
         
     def create_address(self, msg, data):
         msg.to = utils.int_to_addr(self.nonce)
-        print("creating",msg.to.hex())
         self.nonce += 1
         result,gas,memory = vm_execute(self,msg,data)
         self.code.update({msg.to:bytes(memory)})
         return result,gas,msg.to
     
-    def check_tx(self,data):
-        result = self.call_address(addr0,addr1,check_tx_addr_req)
-        checktxaddr = bytes(result[12:32])
-        bdata = bytearray.fromhex(data.decode("utf-8"))
-        call_data = check_tx_call_prefix+utils.encode_int32(len(bdata))+bdata
-        result = self.call_address(addr0,checktxaddr,call_data)
-        return utils.bytearray_to_int(result)
-
-    def deliver_tx(self,data):
-        # get deliver_tx address
-        result = self.call_address(addr0,addr1,deliver_tx_addr_req)
-        delivertxaddr = bytes(result[12:32])
-        
-        # call deliver_tx
-        bdata = bytearray.fromhex(data.decode("utf-8"))
-        call_data = deliver_tx_call_prefix+utils.encode_int32(len(bdata))+utils.encode_int32(math.ceil(len(bdata)/32))+bdata
-        result = self.call_address(addr0,delivertxaddr,call_data)
-        
+    def execute_transaction(self,transaction):
         # get transaction data
-        fromAddr = bytes(result[0:20])
-        toAddr = bytes(result[32:52])
-        length = utils.bytearray_to_int(result[96:128])
-        codeData = bytes(result[160:160+length])
+        fromAddr = bytes.fromhex(transaction.sender)
+        toAddr = bytes.fromhex(transaction.recipient)
+        codeData = bytes.fromhex(transaction.code)
         
         # execute transaction
         if(toAddr==addr0):
             reply,gas,result = self.create_address(Message(fromAddr,toAddr),codeData)
         else:
             result = self.call_address(fromAddr,toAddr,codeData)
-        self.uncommited_tx_count += 1
             
         return result
 

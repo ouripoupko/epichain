@@ -193,7 +193,7 @@ def vm_exception(error, **kargs):
 # Peacefully exits the VM
 def peaceful_exit(cause, gas, data, **kargs):
 #    log_vm_exit.trace('EXIT', cause=cause, **kargs)
-    print('EXIT', cause, kargs)
+#    print('EXIT', cause, kargs)
     return 1, gas, data
 
 
@@ -254,7 +254,7 @@ def vm_trace(ext, msg, compustate, opcode, pushcache):#, tracer=log_vm_op):
 def vm_execute(ext, msg, code):
     # precompute trace flag
     # if we trace vm, we're in slow mode anyway
-    trace_vm = True #log_vm_op.is_active('trace')
+    trace_vm = False #log_vm_op.is_active('trace')
 
     # Initialize stack, memory, program counter, etc
     compustate = Compustate(gas=msg.gas)

@@ -19,7 +19,7 @@ class Consensus:
         self.lock = Lock()
 
     def set_port(self, port):
-        ports = [5000, 5001, 5002]
+        ports = [port]#5000, 5001, 5002]
         for p in ports:
             self.nodes.append(f'127.0.0.1:{p}')
         self.me = f'127.0.0.1:{port}'
@@ -53,11 +53,16 @@ class Consensus:
         next = 0 if last_index+1 == len(self.nodes) else last_index+1
         return self.nodes[next] == self.me
         
+    def execute_block(self, block):
+        for transaction in block.transactions:
+            self.state.execute_transaction(transaction)
+    
     def sign(self):
         block = Block(self.transaction_pool, self.me, self.blockchain.last_hash())
         self.blockchain.add(block)
         self.transaction_pool = []
         self.network.broadcast_block(block)
+        self.execute_block(block)
         
     def report_block(self, transactions, signer, previous):
         self.lock.acquire()
@@ -69,4 +74,5 @@ class Consensus:
                     self.transaction_pool.remove(transaction)
                 self.executed_transactions.append(transaction)
             self.network.broadcast_block(block)
+            self.execute_block(block)
         self.lock.release()
