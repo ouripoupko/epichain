@@ -3,10 +3,6 @@ In order to answer the question - what are the minimal components of an on chain
 
  
 
-Code can be found here: https://github.com/ouripoupko/epichain
-
- 
-
 The blockchain has the following main components:
 
  
